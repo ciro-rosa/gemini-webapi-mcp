@@ -1,3 +1,16 @@
+> ## 📌 Fork pinado e auditado — distribuição (ciro-rosa)
+>
+> Este é um **fork** de [`AndyShaman/gemini-webapi-mcp`](https://github.com/AndyShaman/gemini-webapi-mcp), mantido por [@ciro-rosa](https://github.com/ciro-rosa) para distribuir aos alunos com segurança e controle de versão.
+>
+> - **Código auditado** linha a linha (wrapper + engine) — ver [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md).
+> - **Versão travada** na tag `v1.0-pinned`: a engine ([`ciro-rosa/Gemini-API@v1.19.3`](https://github.com/ciro-rosa/Gemini-API)) e as dependências PyPI estão pinadas em versões exatas auditadas — nenhuma atualização de terceiros entra sem revisão.
+> - Tráfego de rede **somente para domínios do Google**; cookies nunca são logados nem enviados a terceiros.
+> - **Instalação:** via `.mcpb` no Claude Desktop — siga o guia entregue junto (não rode comandos soltos).
+> - **Avisos honestos:** usa os cookies da SUA conta Google (trate como senha); é acesso **não-oficial** à versão web do Gemini (área cinzenta dos Termos do Google → risco de flag da conta; considere uma conta secundária); pode parar de funcionar se o Google mudar o site.
+> - **Licença:** AGPL-3.0-or-later (herdada do upstream) — por isso este fork é público.
+>
+> ---
+
 <h1 align="center">gemini-webapi-mcp</h1>
 
 <p align="center">
