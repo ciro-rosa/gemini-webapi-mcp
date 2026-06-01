@@ -38,6 +38,14 @@ cinzenta — risco de flag da conta), e exposição dos cookies (= sessão Googl
 Resultado: nenhum push do `AndyShaman` ou do `xob0t`, nem release novo das libs diretas,
 alcança a instalação dos alunos sem você atualizar este fork e o `.mcpb` conscientemente.
 
+## Mudanças DESTE fork além do pin (código próprio, não-upstream)
+
+- **`gemini_generate_video`** (tool nova em `server.py`): dispara geração de vídeo (Veo),
+  faz polling da conversa via `READ_CHAT` e baixa o `.mp4` quando pronto. Recupera a URL por
+  **varredura recursiva** procurando `usercontent.google.com/download` (robusto a mudança de
+  layout), em vez de índices fixos. Só fala com endpoints do Google; salva em `~/Videos/gemini`.
+  Tag de release: `v1.1-pinned`.
+
 ## Como re-auditar antes de subir versão nova
 1. `git fetch upstream && git diff <commit-atual>..upstream/main`
 2. Revise o diff. Se ok, bump dos SHAs/versões aqui e gere um `.mcpb` novo.

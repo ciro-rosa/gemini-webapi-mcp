@@ -33,7 +33,13 @@ logger.setLevel(logging.INFO)
 # Constants
 # ---------------------------------------------------------------------------
 IMAGES_DIR = Path.home() / "Pictures" / "gemini"
+VIDEOS_DIR = Path.home() / "Videos" / "gemini"
 DEFAULT_MODEL = "gemini-3.0-flash"
+
+# Video (Veo) generation tuning. The web app produces the video asynchronously;
+# we poll the conversation (READ_CHAT) until the download URL appears.
+VIDEO_POLL_INTERVAL = float(os.environ.get("GEMINI_VIDEO_POLL_INTERVAL", "15"))
+VIDEO_MAX_WAIT = float(os.environ.get("GEMINI_VIDEO_MAX_WAIT", "600"))  # 10 min ceiling
 
 # Hard ceiling for a single image-generation call (seconds). The StreamGenerate
 # response via gemini_webapi is erratically slow (measured 22s..345s for the
@@ -820,6 +826,153 @@ async def gemini_generate_image(
         }
         return json.dumps(result, ensure_ascii=False, indent=2)
 
+    except Exception as e:
+        return _handle_error(e)
+
+
+def _scan_video_download_urls(obj, out: set) -> None:
+    """Recursively collect Gemini video download URLs from a parsed response.
+
+    Robust to Google's exact response layout (which shifts over time): we scan
+    for the stable signature `usercontent.google.com/download` instead of
+    hardcoding nested indices.
+    """
+    if isinstance(obj, str):
+        if "usercontent.google.com/download" in obj:
+            out.add(obj.encode().decode("unicode_escape") if "\\u" in obj else obj)
+    elif isinstance(obj, list):
+        for v in obj:
+            _scan_video_download_urls(v, out)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _scan_video_download_urls(v, out)
+
+
+@mcp.tool(
+    name="gemini_generate_video",
+    annotations={
+        "title": "Gemini Video Generation (Veo)",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def gemini_generate_video(
+    prompt: str,
+    ctx: Context,
+    model: Optional[str] = None,
+) -> str:
+    """Generate a video with Gemini (Veo) using your subscription.
+
+    SLOW: Veo generation takes several minutes. This call triggers the
+    generation and then polls until the video is ready (up to ~10 min),
+    downloads it, and saves to ~/Videos/gemini/.
+
+    Note: the Gemini web app limits free video generations per day. If you hit
+    the limit you'll get a clear message — try again tomorrow.
+
+    Args:
+        prompt: Describe the video you want (e.g. 'a cinematic shot of a kitten
+                playing with yarn'). Phrase it as a video request.
+        model: Model name. Defaults to gemini-3.0-flash.
+
+    Returns:
+        JSON with saved video file path(s), or an error message.
+    """
+    import json as _json
+    import time
+    from gemini_webapi.constants import GRPC
+    from gemini_webapi.types import RPCData
+    from gemini_webapi.utils import parse_response_by_frame, get_nested_value
+    import gemini_webapi.client as _gwc
+
+    try:
+        client = _get_client(ctx)
+        # Skip the engine's built-in video poll (it uses an outdated parser and
+        # would stall ~5 min); we do our own robust poll below.
+        try:
+            _gwc._VIDEO_POLL_MAX_ATTEMPTS = 0
+        except Exception:
+            pass
+
+        vprompt = prompt
+        if not re.search(r"\bv[ií]deo\b", prompt, re.IGNORECASE):
+            vprompt = f"Create a video: {prompt}"
+
+        # Trigger generation (returns quickly with the 'generating your video' chip).
+        async with _image_lock:
+            chat = client.start_chat(model=model or DEFAULT_MODEL)
+            try:
+                await asyncio.wait_for(chat.send_message(vprompt), timeout=180)
+            except asyncio.TimeoutError:
+                return "Error: Gemini did not acknowledge the video request in time. Try again."
+
+        cid = chat.cid
+        if not cid:
+            return "Error: could not obtain a conversation id to track the video. Try again."
+
+        # Poll the conversation until the download URL appears.
+        deadline = time.monotonic() + VIDEO_MAX_WAIT
+        video_urls: list[str] = []
+        while time.monotonic() < deadline:
+            await asyncio.sleep(VIDEO_POLL_INTERVAL)
+            try:
+                payload = _json.dumps([cid, 10, None, 1, [1], [4], None, 1])
+                r = await client._batch_execute([RPCData(rpcid=GRPC.READ_CHAT, payload=payload)])
+                t = r.text
+                if t.startswith(")]}'"):
+                    t = t[5:]
+                parts, _ = parse_response_by_frame(t)
+                found: set = set()
+                for part in parts:
+                    if get_nested_value(part, [1]) != GRPC.READ_CHAT:
+                        continue
+                    inner = get_nested_value(part, [2])
+                    if inner:
+                        try:
+                            _scan_video_download_urls(_json.loads(inner), found)
+                        except Exception:
+                            pass
+                # The real playable file is the one named video.* (the other URL
+                # is an omni_content protobuf blob).
+                mp4 = [u for u in found if "filename=video" in u]
+                if mp4:
+                    video_urls = mp4
+                    break
+                # Stop early if Gemini reported it can't make more videos today.
+                if re.search(r"can't generate more videos|come back tomorrow|video generation isn't available", t, re.IGNORECASE):
+                    return ("Error: Gemini's daily video limit appears to be reached "
+                            "(or video generation is unavailable for this account). Try again tomorrow.")
+            except Exception as exc:
+                logger.warning("video poll error: %s", type(exc).__name__)
+
+        if not video_urls:
+            short_cid = cid[2:] if cid.startswith("c_") else cid
+            return (f"Error: video not ready within {VIDEO_MAX_WAIT:.0f}s. It may still be "
+                    f"generating — check https://gemini.google.com/app/{short_cid} and try "
+                    "gemini_generate_video again, or download it from there.")
+
+        VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+        saved = []
+        for i, u in enumerate(dict.fromkeys(video_urls)):
+            try:
+                dl = await client.client.get(u, timeout=180)
+                if dl.status_code != 200 or "video" not in dl.headers.get("content-type", ""):
+                    continue
+                fp = VIDEOS_DIR / f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{i}.mp4"
+                fp.write_bytes(dl.content)
+                saved.append({"path": str(fp), "bytes": len(dl.content)})
+            except Exception as exc:
+                logger.warning("video download failed: %s", exc)
+
+        if not saved:
+            return "Error: found the video but failed to download it. Try again."
+
+        return json.dumps(
+            {"videos": saved, "videos_saved_to": str(VIDEOS_DIR), "conversation_id": [cid]},
+            ensure_ascii=False, indent=2,
+        )
     except Exception as e:
         return _handle_error(e)
 
