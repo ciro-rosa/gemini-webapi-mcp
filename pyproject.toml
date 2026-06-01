@@ -24,14 +24,18 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
 ]
+# PINNED FOR DISTRIBUTION (ciro-rosa) — audited 2026-06-01.
+# Engine pinned to ciro-rosa/Gemini-API @ audited commit 4402e52 (immutable SHA).
+# Direct deps pinned to the exact versions audited so no upstream push/release
+# reaches students without re-review. See SECURITY-AUDIT.md.
 dependencies = [
-    "gemini-webapi @ git+https://github.com/xob0t/Gemini-API.git",
-    "mcp>=1.8,<2",
-    "browser-cookie3>=0.20",
-    "orjson>=3.9",
-    "Pillow>=10.0",
-    "numpy>=1.24",
-    "curl-cffi>=0.14.0",
+    "gemini-webapi @ git+https://github.com/ciro-rosa/Gemini-API.git@4402e5231760a1e85e28eb6cd0040ff302b764de",
+    "mcp==1.27.2",
+    "browser-cookie3==0.20.1",
+    "orjson==3.11.9",
+    "Pillow==12.2.0",
+    "numpy==2.4.6",
+    "curl-cffi==0.15.0",
 ]
 
 [project.scripts]
