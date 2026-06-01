@@ -9,7 +9,7 @@ entrem sem revisão.
 | Componente | Commit auditado |
 |---|---|
 | Wrapper MCP (`AndyShaman/gemini-webapi-mcp`) | `de3c5e056144701f4ebb2b68e7c9dc13faf7fba4` |
-| Engine (`xob0t/Gemini-API`) | `4402e5231760a1e85e28eb6cd0040ff302b764de` (tag `audited-4402e52` no fork) |
+| Engine (`xob0t/Gemini-API`) | `4402e5231760a1e85e28eb6cd0040ff302b764de` |
 
 ## Resultado
 
@@ -29,7 +29,10 @@ cinzenta — risco de flag da conta), e exposição dos cookies (= sessão Googl
 ## Pinagem aplicada
 
 `pyproject.toml` deste fork:
-- Engine travada no SHA imutável `4402e52` do **fork `ciro-rosa/Gemini-API`** (não no upstream).
+- Engine travada na tag **`v1.19.3`** do **fork `ciro-rosa/Gemini-API`** (não no upstream).
+  Essa tag = código-fonte auditado do commit `4402e52` + um patch SÓ de metadata de build
+  (versão estática no lugar do `setuptools_scm`, pra o `uv` conseguir buildar quando pinado).
+  Nenhuma linha de código `.py` foi alterada em relação ao auditado.
 - Dependências PyPI diretas travadas em versão exata (`==`) nas versões auditadas.
 
 Resultado: nenhum push do `AndyShaman` ou do `xob0t`, nem release novo das libs diretas,
