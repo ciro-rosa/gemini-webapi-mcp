@@ -29,7 +29,8 @@ classifiers = [
 # Direct deps pinned to the exact versions audited so no upstream push/release
 # reaches students without re-review. See SECURITY-AUDIT.md.
 dependencies = [
-    "gemini-webapi @ git+https://github.com/ciro-rosa/Gemini-API.git@4402e5231760a1e85e28eb6cd0040ff302b764de",
+    # tag v1.19.3 == audited commit 4402e5231760a1e85e28eb6cd0040ff302b764de (immutable on this fork)
+    "gemini-webapi @ git+https://github.com/ciro-rosa/Gemini-API.git@v1.19.3",
     "mcp==1.27.2",
     "browser-cookie3==0.20.1",
     "orjson==3.11.9",
